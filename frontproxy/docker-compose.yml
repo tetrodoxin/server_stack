@@ -1,0 +1,35 @@
+version: "3"
+
+services:
+  frontproxy:
+    image: jwilder/nginx-proxy:alpine
+    container_name: frontproxy
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /var/run/docker.sock:/tmp/docker.sock:ro
+      - /etc/frontproxy/nginx-certs:/etc/nginx/certs:ro
+      - ./nginx-vhost:/etc/nginx/vhost.d
+      - ./nginx-html:/usr/share/nginx/html
+      - ./uploadsize.conf:/etc/nginx/conf.d/uploadsize.conf
+    networks:
+      frontproxy_network:
+
+  frontproxy-letsencrypt:
+    image: jrcs/letsencrypt-nginx-proxy-companion
+    container_name: frontproxy-letsencrypt
+    networks:
+      frontproxy_network:
+    environment:
+      NGINX_PROXY_CONTAINER: "frontproxy"
+    volumes_from:
+      - "frontproxy"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro                                                             
+      - /etc/frontproxy/nginx-certs:/etc/nginx/certs                                                                        
+networks:
+  frontproxy_network:
+    name: frontproxy_network
+

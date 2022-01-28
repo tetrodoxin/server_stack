@@ -1,0 +1,87 @@
+version: '3'
+
+services:
+  db:
+    image: mariadb
+    command: --transaction-isolation=READ-COMMITTED --binlog-format=ROW --innodb-file-per-table=1 --skip-innodb-read-only-compressed
+    restart: always
+    volumes:
+      - db:/var/lib/mysql
+    environment:
+      - MARIADB_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      - MARIADB_PASSWORD=${MYSQL_PASSWORD}
+      - MARIADB_USER=${MYSQL_USER}
+      - MARIADB_DATABASE=${MYSQL_DATABASE}
+    networks:
+      nextcloud-network:
+        aliases:
+          - nextcloud-mariadb
+
+  redis:
+    image: redis:alpine
+    restart: always
+    networks:
+      nextcloud-network:
+        aliases:
+          - nextcloud-redis
+
+  app:
+    image: nextcloud:fpm-alpine
+    restart: always
+    volumes:
+      - nextcloud:/var/www/html
+    environment:
+      - MYSQL_HOST=db
+      - REDIS_HOST=redis
+    depends_on:
+      - db
+      - redis
+    networks:
+      nextcloud-network:
+        aliases:
+          - nextcloud-app
+
+  web:
+    image: nginx:alpine
+    restart: always
+    volumes:
+      - nextcloud:/var/www/html:ro
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    environment:
+      - VIRTUAL_HOST=${NEXTCLOUD_HOSTNAME}
+      - LETSENCRYPT_HOST=${NEXTCLOUD_HOSTNAME}
+      - LETSENCRYPT_EMAIL=${LETSENCRYPT_EMAIL}
+    depends_on:
+      - app
+    networks:
+      nextcloud-network:
+        aliases:
+          - nextcloud
+      frontproxy_network:
+
+  cron:
+    image: nextcloud:fpm-alpine
+    restart: always
+    volumes:
+      - nextcloud:/var/www/html
+    entrypoint: /cron.sh
+    depends_on:
+      - db
+      - redis
+    networks:
+      nextcloud-network:
+        aliases:
+          - nextcloud-cron
+
+
+volumes:
+  db:
+  nextcloud:
+
+networks:
+  frontproxy_network:
+    external: true
+  nextcloud-network:
+    driver: bridge
+    driver_opts:
+      com.docker.network.bridge.name: br-nextcloud
